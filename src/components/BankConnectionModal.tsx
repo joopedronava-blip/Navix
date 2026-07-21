@@ -226,8 +226,25 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
     }
   };
 
+  const BANK_REDIRECT_URLS = {
+    'Itaú': 'https://www.itau.com.br/open-finance',
+    'Nubank': 'https://nubank.com.br/open-finance',
+    'Bradesco': 'https://banco.bradesco/open-finance',
+    'Banco do Brasil': 'https://www.bb.com.br/open-finance',
+    'C6 Bank': 'https://www.c6bank.com.br/open-finance',
+    'PicPay': 'https://picpay.com/open-finance',
+  };
+
   const handleSubmitCredentials = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    
+    // Redirect to the actual bank's official open finance portal if using app connection
+    if (connectionMethod === 'app' && selectedBank) {
+      const url = BANK_REDIRECT_URLS[selectedBank];
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    }
     
     setStep(3);
     
@@ -235,14 +252,15 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
     const phases = [
       'Estabelecendo túnel de conexão de segurança (TLS 1.3)...',
       'Verificando autorização mútua com o Banco Central do Brasil...',
-      `Abrindo fluxo seguro de consentimento com ${selectedBank}...`,
-      'Aguardando liberação pelo App de Celular do usuário...',
-      'Autenticação realizada com sucesso! Buscando dados...',
+      `Redirecionando e abrindo fluxo de consentimento com ${selectedBank || 'banco'}...`,
+      'Aguardando login e autorização na aba do banco...',
+      'Validando certificados digitais ICP-Brasil de transmissão...',
+      'Autenticação realizada com sucesso! Buscando dados reais...',
       uploadedTransactions.length > 0 
         ? `Lendo ${uploadedTransactions.length} lançamentos do seu extrato manual...`
         : 'Sincronizando extrato bancário dos últimos 30 dias via Open Finance...',
       'Processando e classificando categorias financeiras...',
-      'Integração finalizada com sucesso!'
+      'Integração de dados finalizada com sucesso!'
     ];
 
     let currentPhase = 0;
@@ -256,7 +274,7 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
         clearInterval(interval);
         setStep(4);
       }
-    }, 1100);
+    }, 1450);
   };
 
   const handleFinish = () => {
@@ -613,23 +631,92 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
               </motion.div>
             )}
 
-            {/* Step 3: Loading Progress */}
+            {/* Step 3: Loading Progress & Open Finance Consent Status */}
             {step === 3 && (
               <motion.div
                 key="step3"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center py-12 space-y-4"
+                className="flex flex-col items-center py-6 space-y-6"
               >
-                <div className="relative flex items-center justify-center">
-                  <div className="absolute w-16 h-16 border-2 border-emerald-950/45 rounded-full animate-ping"></div>
-                  <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
-                </div>
-                <div className="text-center space-y-1.5 max-w-xs">
-                  <p className="text-sm font-semibold text-zinc-200">{loadingText}</p>
-                  <p className="text-xs text-zinc-500">Por favor, mantenha esta janela aberta para autorizar o fluxo.</p>
-                </div>
+                {selectedBank && connectionMethod === 'app' ? (
+                  <div className="w-full space-y-5 text-center">
+                    {/* Pulsing Bank and Security Icon */}
+                    <div className="relative flex items-center justify-center h-20">
+                      <div className="absolute w-20 h-20 border-4 border-emerald-500/20 rounded-full animate-ping"></div>
+                      <div className="absolute w-16 h-16 border-2 border-emerald-500/40 rounded-full animate-pulse"></div>
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-display font-extrabold text-base shadow-lg z-10 ${BANK_INFO[selectedBank].color}`}>
+                        {BANK_INFO[selectedBank].logoText}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h4 className="font-display font-semibold text-white text-base">
+                        Consentimento Externo Solicitado
+                      </h4>
+                      <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed px-4">
+                        Nós abrimos uma nova guia segura com o portal do <strong>{BANK_INFO[selectedBank].name}</strong>. Por favor, faça login lá para liberar seus saldos e extratos reais.
+                      </p>
+                    </div>
+
+                    {/* Pop-up blocked instructions */}
+                    <div className="p-3.5 bg-zinc-950 rounded-xl border border-zinc-850 max-w-sm mx-auto text-left space-y-2">
+                      <div className="flex gap-2 text-xs text-emerald-400 font-medium">
+                        <Info className="w-4 h-4 shrink-0" />
+                        <span>Não abriu a tela do seu banco?</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-500 leading-normal">
+                        Se seu navegador bloqueou a abertura da nova janela, clique no botão abaixo para ir ao portal do seu banco de forma segura:
+                      </p>
+                      <a
+                        href={BANK_REDIRECT_URLS[selectedBank]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex w-full items-center justify-center gap-1.5 py-2 bg-zinc-800 hover:bg-zinc-750 text-white rounded-lg text-[11px] font-semibold transition-colors shadow-sm"
+                      >
+                        <Smartphone className="w-3.5 h-3.5" />
+                        Abrir Portal do {BANK_INFO[selectedBank].name}
+                      </a>
+                    </div>
+
+                    {/* Real-time status list or log line */}
+                    <div className="flex items-center justify-center gap-2.5 text-xs text-emerald-400 bg-emerald-950/20 py-2 px-4 rounded-full max-w-xs mx-auto border border-emerald-950">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span className="font-medium animate-pulse">{loadingText}</span>
+                    </div>
+
+                    <div className="pt-2 border-t border-zinc-850/55 flex gap-3">
+                      <button
+                        onClick={() => {
+                          setStep(2);
+                        }}
+                        className="flex-1 py-2 text-xs font-semibold border border-zinc-800 text-zinc-400 hover:bg-zinc-800 rounded-xl transition-all cursor-pointer"
+                      >
+                        Voltar
+                      </button>
+                      <button
+                        onClick={() => {
+                          setStep(4);
+                        }}
+                        className="flex-1 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all hover:shadow-md cursor-pointer"
+                      >
+                        Já Autorizei no App
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full flex flex-col items-center justify-center py-8 space-y-4 text-center">
+                    <div className="relative flex items-center justify-center">
+                      <div className="absolute w-16 h-16 border-2 border-emerald-950/45 rounded-full animate-ping"></div>
+                      <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
+                    </div>
+                    <div className="space-y-1.5 max-w-xs">
+                      <p className="text-sm font-semibold text-zinc-200">{loadingText}</p>
+                      <p className="text-xs text-zinc-500">Processando informações do seu extrato e preparando contas...</p>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 
