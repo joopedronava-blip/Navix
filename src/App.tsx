@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Landmark, Shield, RefreshCw, LogOut, CheckCircle, Award, LayoutDashboard, CalendarRange } from 'lucide-react';
+import { Landmark, Shield, RefreshCw, LogOut, CheckCircle, Award, LayoutDashboard, CalendarRange, CloudLightning } from 'lucide-react';
 import { BankAccount, Transaction, Budget, TransactionCategory } from './types';
 import { INITIAL_ACCOUNTS, INITIAL_TRANSACTIONS, INITIAL_BUDGETS } from './data';
 
@@ -12,6 +12,7 @@ import TransactionHistory from './components/TransactionHistory';
 import MonthlyHistory from './components/MonthlyHistory';
 import BankConnectionModal from './components/BankConnectionModal';
 import FileUploadModal from './components/FileUploadModal';
+import ExportDeployModal from './components/ExportDeployModal';
 
 export default function App() {
   // --- States ---
@@ -27,6 +28,7 @@ export default function App() {
 
   const [isConnectOpen, setIsConnectOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
 
@@ -269,8 +271,8 @@ export default function App() {
           </div>
 
           {/* User & Admin controls */}
-          <div className="flex items-center gap-3">
-            <div className="text-right hidden sm:block">
+          <div className="flex items-center gap-2.5">
+            <div className="text-right hidden md:block">
               <p className="text-xs font-semibold text-zinc-300">Olá, João Silva</p>
               <p className="text-[10px] text-zinc-500">joooedronava@gmail.com</p>
             </div>
@@ -281,6 +283,14 @@ export default function App() {
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Restaurar</span>
+            </button>
+            <button
+              onClick={() => setIsExportOpen(true)}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-emerald-950/20 cursor-pointer"
+              title="Exportar para o GitHub e Deploy no Netlify"
+            >
+              <CloudLightning className="w-3.5 h-3.5" />
+              <span>Exportar & Deploy</span>
             </button>
           </div>
         </div>
@@ -401,6 +411,11 @@ export default function App() {
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onImport={handleImportFile}
+      />
+
+      <ExportDeployModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
       />
     </div>
   );
