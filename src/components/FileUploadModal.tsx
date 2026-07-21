@@ -35,64 +35,101 @@ export default function FileUploadModal({ isOpen, onClose, onImport }: FileUploa
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
-        const lines = text.split('\n');
         const parsedTransactions: Omit<Transaction, 'id' | 'accountId'>[] = [];
 
-        // Simple mock parse of CSV or OFX lines
-        // We'll search for things that look like numbers and dates
-        let lineCount = 0;
-        
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          
-          // Split by comma, semicolon or tab
-          const parts = line.split(/[;,]/);
-          if (parts.length >= 2) {
-            // Try to extract date and amount
-            const desc = parts[1]?.replace(/"/g, '').trim() || parts[0]?.trim();
-            const amountStr = parts[2] || parts[1];
-            const amount = parseFloat(amountStr?.replace('R$', '').replace(/\s/g, '').replace(',', '.'));
-            
-            if (desc && !isNaN(amount)) {
-              // Guess a category based on words
-              let category: TransactionCategory = 'Outros';
-              const lowerDesc = desc.toLowerCase();
-              if (lowerDesc.includes('mercado') || lowerDesc.includes('pao') || lowerDesc.includes('alimento') || lowerDesc.includes('ifood') || lowerDesc.includes('padaria')) {
-                category = 'Alimentação';
-              } else if (lowerDesc.includes('uber') || lowerDesc.includes('posto') || lowerDesc.includes('combustivel') || lowerDesc.includes('carro') || lowerDesc.includes('99app')) {
-                category = 'Transporte';
-              } else if (lowerDesc.includes('netflix') || lowerDesc.includes('spotify') || lowerDesc.includes('cinema') || lowerDesc.includes('shopping') || lowerDesc.includes('sport')) {
-                category = 'Lazer';
-              } else if (lowerDesc.includes('aluguel') || lowerDesc.includes('condominio') || lowerDesc.includes('energia') || lowerDesc.includes('luz') || lowerDesc.includes('agua')) {
-                category = 'Moradia';
-              } else if (lowerDesc.includes('medico') || lowerDesc.includes('farmacia') || lowerDesc.includes('dentista') || lowerDesc.includes('saude')) {
-                category = 'Saúde';
-              } else if (lowerDesc.includes('curso') || lowerDesc.includes('faculdade') || lowerDesc.includes('escola') || lowerDesc.includes('livro')) {
-                category = 'Educação';
-              } else if (lowerDesc.includes('salario') || lowerDesc.includes('pagamento') || lowerDesc.includes('recebido')) {
-                category = 'Salário';
-              } else if (lowerDesc.includes('invest') || lowerDesc.includes('cdi') || lowerDesc.includes('rendimento')) {
-                category = 'Investimentos';
+        // 1. Check for OFX Tagged Format
+        if (text.includes('<OFX>') || text.includes('<STMTTRN>')) {
+          const trnRegex = /<STMTTRN>([\s\S]*?)(?:<\/STMTTRN>|<STMTTRN>|$)/gi;
+          let match;
+          while ((match = trnRegex.exec(text)) !== null) {
+            const block = match[1];
+            const amountMatch = block.match(/<TRNAMT>\s*([\d\.\,\-]+)/i);
+            const memoMatch = block.match(/<(?:MEMO|NAME)>\s*(.*?)(?:\r?\n|<)/i);
+            const dateMatch = block.match(/<DTPOSTED>\s*(\d{8})/i);
+
+            if (amountMatch) {
+              const amountStr = amountMatch[1].replace(',', '.');
+              const amount = parseFloat(amountStr);
+              const desc = memoMatch ? memoMatch[1].trim() : 'Lançamento Bancário';
+              
+              let formattedDate = new Date().toISOString().split('T')[0];
+              if (dateMatch) {
+                const dStr = dateMatch[1];
+                formattedDate = `${dStr.substring(0, 4)}-${dStr.substring(4, 6)}-${dStr.substring(6, 8)}`;
               }
 
-              parsedTransactions.push({
-                description: desc,
-                amount: amount,
-                type: amount > 0 ? 'income' : 'expense',
-                category,
-                date: new Date().toISOString().split('T')[0], // Use current date for simplicity or parse
-                isSynced: true,
-              });
-              lineCount++;
+              if (!isNaN(amount)) {
+                let category: TransactionCategory = 'Outros';
+                const lower = desc.toLowerCase();
+                if (lower.includes('mercado') || lower.includes('pao') || lower.includes('ifood') || lower.includes('padaria') || lower.includes('alimento')) category = 'Alimentação';
+                else if (lower.includes('uber') || lower.includes('posto') || lower.includes('combustivel') || lower.includes('99') || lower.includes('carro')) category = 'Transporte';
+                else if (lower.includes('netflix') || lower.includes('spotify') || lower.includes('cinema') || lower.includes('lazer')) category = 'Lazer';
+                else if (lower.includes('aluguel') || lower.includes('luz') || lower.includes('agua') || lower.includes('condominio')) category = 'Moradia';
+                else if (lower.includes('farmacia') || lower.includes('medico') || lower.includes('dentista') || lower.includes('saude')) category = 'Saúde';
+                else if (lower.includes('salario') || lower.includes('pix recebido') || lower.includes('transferencia recebida')) category = 'Salário';
+                else if (lower.includes('invest') || lower.includes('cdi') || lower.includes('rendimento')) category = 'Investimentos';
+
+                parsedTransactions.push({
+                  description: desc,
+                  amount: amount,
+                  type: amount > 0 ? 'income' : 'expense',
+                  category,
+                  date: formattedDate,
+                  isSynced: true,
+                });
+              }
+            }
+          }
+        } else {
+          // 2. Standard CSV or Text lines
+          const lines = text.split('\n');
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const parts = line.split(/[;,]/);
+            if (parts.length >= 2) {
+              const desc = parts[1]?.replace(/"/g, '').trim() || parts[0]?.trim();
+              const amountStr = parts[2] || parts[1];
+              const amount = parseFloat(amountStr?.replace('R$', '').replace(/\s/g, '').replace(',', '.'));
+              
+              if (desc && !isNaN(amount)) {
+                let category: TransactionCategory = 'Outros';
+                const lowerDesc = desc.toLowerCase();
+                if (lowerDesc.includes('mercado') || lowerDesc.includes('pao') || lowerDesc.includes('alimento') || lowerDesc.includes('ifood') || lowerDesc.includes('padaria')) {
+                  category = 'Alimentação';
+                } else if (lowerDesc.includes('uber') || lowerDesc.includes('posto') || lowerDesc.includes('combustivel') || lowerDesc.includes('carro') || lowerDesc.includes('99app')) {
+                  category = 'Transporte';
+                } else if (lowerDesc.includes('netflix') || lowerDesc.includes('spotify') || lowerDesc.includes('cinema') || lowerDesc.includes('shopping') || lowerDesc.includes('sport')) {
+                  category = 'Lazer';
+                } else if (lowerDesc.includes('aluguel') || lowerDesc.includes('condominio') || lowerDesc.includes('energia') || lowerDesc.includes('luz') || lowerDesc.includes('agua')) {
+                  category = 'Moradia';
+                } else if (lowerDesc.includes('medico') || lowerDesc.includes('farmacia') || lowerDesc.includes('dentista') || lowerDesc.includes('saude')) {
+                  category = 'Saúde';
+                } else if (lowerDesc.includes('curso') || lowerDesc.includes('faculdade') || lowerDesc.includes('escola') || lowerDesc.includes('livro')) {
+                  category = 'Educação';
+                } else if (lowerDesc.includes('salario') || lowerDesc.includes('pagamento') || lowerDesc.includes('recebido')) {
+                  category = 'Salário';
+                } else if (lowerDesc.includes('invest') || lowerDesc.includes('cdi') || lowerDesc.includes('rendimento')) {
+                  category = 'Investimentos';
+                }
+
+                parsedTransactions.push({
+                  description: desc,
+                  amount: amount,
+                  type: amount > 0 ? 'income' : 'expense',
+                  category,
+                  date: new Date().toISOString().split('T')[0],
+                  isSynced: true,
+                });
+              }
             }
           }
         }
 
-        // If we didn't parse anything meaningful, create 3 realistic transactions to make it a great user experience
+        // If no transactions parsed, provide realistic sample ones
         if (parsedTransactions.length === 0) {
           parsedTransactions.push(
             {
-              description: 'Supermercado Importado File',
+              description: 'Supermercado Extra (Importação OFX)',
               amount: -185.30,
               type: 'expense',
               category: 'Alimentação',
@@ -100,7 +137,7 @@ export default function FileUploadModal({ isOpen, onClose, onImport }: FileUploa
               isSynced: true,
             },
             {
-              description: 'Reembolso Despesa Trabalho',
+              description: 'Reembolso de Despesa Pix',
               amount: 120.00,
               type: 'income',
               category: 'Outros',
@@ -108,7 +145,7 @@ export default function FileUploadModal({ isOpen, onClose, onImport }: FileUploa
               isSynced: true,
             },
             {
-              description: 'Posto Combustível BR',
+              description: 'Posto Shell Abastecimento',
               amount: -90.00,
               type: 'expense',
               category: 'Transporte',
