@@ -1,7 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ShieldCheck, CreditCard, Loader2, CheckCircle2, ArrowRight, Smartphone, Key } from 'lucide-react';
-import { BankAccount, Transaction } from '../types';
+import { 
+  X, 
+  ShieldCheck, 
+  CreditCard, 
+  Loader2, 
+  CheckCircle2, 
+  ArrowRight, 
+  Smartphone, 
+  Key, 
+  QrCode, 
+  Upload, 
+  FileSpreadsheet, 
+  AlertCircle, 
+  Info, 
+  Sparkles 
+} from 'lucide-react';
+import { BankAccount, Transaction, TransactionCategory } from '../types';
 import { BANK_SIMULATION_TRANSACTIONS } from '../data';
 
 interface BankConnectionModalProps {
@@ -67,6 +82,17 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
   const [password, setPassword] = useState('');
   const [loadingText, setLoadingText] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
+  
+  // Custom states for real bank account data entry
+  const [connectionMethod, setConnectionMethod] = useState<'app' | 'manual'>('app');
+  const [customBalance, setCustomBalance] = useState('');
+  const [customAccount, setCustomAccount] = useState('');
+  const [uploadedFileName, setUploadedFileName] = useState('');
+  const [uploadedTransactions, setUploadedTransactions] = useState<Omit<Transaction, 'id' | 'accountId'>[]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
     setStep(1);
@@ -75,6 +101,13 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
     setPassword('');
     setAccountNumber('');
     setLoadingText('');
+    setConnectionMethod('app');
+    setCustomBalance('');
+    setCustomAccount('');
+    setUploadedFileName('');
+    setUploadedTransactions([]);
+    setFileError(null);
+    setDragActive(false);
   };
 
   const handleClose = () => {
@@ -84,27 +117,132 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
 
   const handleSelectBank = (bank: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil' | 'C6 Bank' | 'PicPay') => {
     setSelectedBank(bank);
-    // Generate a random account number for realism
+    
+    // Generate a beautiful, realistic default account number
     const randomAg = Math.floor(1000 + Math.random() * 9000);
     const randomCc = Math.floor(10000 + Math.random() * 90000);
-    setAccountNumber(`Ag: ${randomAg} C/C: ${randomCc}-${Math.floor(Math.random() * 10)}`);
+    const initialAcc = `Ag: ${randomAg} C/C: ${randomCc}-${Math.floor(Math.random() * 10)}`;
+    setAccountNumber(initialAcc);
+    setCustomAccount(initialAcc);
+    
+    // Suggest standard simulated initial balances which they can edit
+    const standardBal = bank === 'Nubank' ? '5200.00' : bank === 'Itaú' ? '3100.00' : bank === 'Bradesco' ? '4500.00' : bank === 'Banco do Brasil' ? '2800.00' : bank === 'C6 Bank' ? '6200.00' : '1500.00';
+    setCustomBalance(standardBal);
+    
     setStep(2);
   };
 
-  const handleSubmitCredentials = (e: React.FormEvent) => {
+  // Process manual CSV/OFX statement file upload during account creation
+  const processImportFile = (file: File) => {
+    setFileError(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const lines = text.split('\n');
+        const parsedTransactions: Omit<Transaction, 'id' | 'accountId'>[] = [];
+        
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const parts = line.split(/[;,]/);
+          if (parts.length >= 2) {
+            const desc = parts[1]?.replace(/"/g, '').trim() || parts[0]?.trim();
+            const amountStr = parts[2] || parts[1];
+            const amount = parseFloat(amountStr?.replace('R$', '').replace(/\s/g, '').replace(',', '.'));
+            
+            if (desc && !isNaN(amount)) {
+              let category: TransactionCategory = 'Outros';
+              const lowerDesc = desc.toLowerCase();
+              if (lowerDesc.includes('mercado') || lowerDesc.includes('pao') || lowerDesc.includes('alimento') || lowerDesc.includes('ifood') || lowerDesc.includes('padaria')) {
+                category = 'Alimentação';
+              } else if (lowerDesc.includes('uber') || lowerDesc.includes('posto') || lowerDesc.includes('combustivel') || lowerDesc.includes('carro') || lowerDesc.includes('99app')) {
+                category = 'Transporte';
+              } else if (lowerDesc.includes('netflix') || lowerDesc.includes('spotify') || lowerDesc.includes('cinema') || lowerDesc.includes('shopping') || lowerDesc.includes('sport')) {
+                category = 'Lazer';
+              } else if (lowerDesc.includes('aluguel') || lowerDesc.includes('condominio') || lowerDesc.includes('energia') || lowerDesc.includes('luz') || lowerDesc.includes('agua')) {
+                category = 'Moradia';
+              } else if (lowerDesc.includes('medico') || lowerDesc.includes('farmacia') || lowerDesc.includes('dentista') || lowerDesc.includes('saude')) {
+                category = 'Saúde';
+              } else if (lowerDesc.includes('curso') || lowerDesc.includes('faculdade') || lowerDesc.includes('escola') || lowerDesc.includes('livro')) {
+                category = 'Educação';
+              } else if (lowerDesc.includes('salario') || lowerDesc.includes('pagamento') || lowerDesc.includes('recebido')) {
+                category = 'Salário';
+              } else if (lowerDesc.includes('invest') || lowerDesc.includes('cdi') || lowerDesc.includes('rendimento')) {
+                category = 'Investimentos';
+              }
+
+              parsedTransactions.push({
+                description: desc,
+                amount: amount,
+                type: amount > 0 ? 'income' : 'expense',
+                category,
+                date: new Date().toISOString().split('T')[0],
+                isSynced: true,
+              });
+            }
+          }
+        }
+
+        if (parsedTransactions.length === 0) {
+          setFileError('Nenhum lançamento legível identificado no arquivo. Carregando simulação padrão.');
+          // Pre-populate with standard simulated ones as backup
+          if (selectedBank) {
+            setUploadedTransactions(BANK_SIMULATION_TRANSACTIONS[selectedBank] || []);
+          }
+        } else {
+          setUploadedTransactions(parsedTransactions);
+          setUploadedFileName(file.name);
+        }
+      } catch (err) {
+        setFileError('Falha ao decodificar arquivo. Tente exportar em formato OFX ou CSV puro.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!cpf || !password) return;
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processImportFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      processImportFile(e.target.files[0]);
+    }
+  };
+
+  const handleSubmitCredentials = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     
     setStep(3);
     
-    // Simulate Open Finance connection lifecycle
+    // Highly realistic Open Finance syncing stage lifecycle
     const phases = [
-      'Estabelecendo conexão segura com o banco...',
-      'Autenticando credenciais criptografadas...',
-      'Consentimento Open Finance autorizado pelo Banco Central...',
-      'Baixando extrato dos últimos 30 dias...',
-      'Analisando e categorizando transações...',
-      'Sincronização concluída com sucesso!'
+      'Estabelecendo túnel de conexão de segurança (TLS 1.3)...',
+      'Verificando autorização mútua com o Banco Central do Brasil...',
+      `Abrindo fluxo seguro de consentimento com ${selectedBank}...`,
+      'Aguardando liberação pelo App de Celular do usuário...',
+      'Autenticação realizada com sucesso! Buscando dados...',
+      uploadedTransactions.length > 0 
+        ? `Lendo ${uploadedTransactions.length} lançamentos do seu extrato manual...`
+        : 'Sincronizando extrato bancário dos últimos 30 dias via Open Finance...',
+      'Processando e classificando categorias financeiras...',
+      'Integração finalizada com sucesso!'
     ];
 
     let currentPhase = 0;
@@ -118,15 +256,16 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
         clearInterval(interval);
         setStep(4);
       }
-    }, 1200);
+    }, 1100);
   };
 
   const handleFinish = () => {
     if (selectedBank) {
-      const txs = BANK_SIMULATION_TRANSACTIONS[selectedBank] || [];
-      // Calculate random initial balance matching simulated values
-      const balance = selectedBank === 'Nubank' ? 5200.00 : selectedBank === 'Itaú' ? 3100.00 : selectedBank === 'Bradesco' ? 4500.00 : selectedBank === 'Banco do Brasil' ? 2800.00 : selectedBank === 'C6 Bank' ? 6200.00 : 1500.00;
-      onConnect(selectedBank, accountNumber, txs, balance);
+      const txs = uploadedTransactions.length > 0 ? uploadedTransactions : (BANK_SIMULATION_TRANSACTIONS[selectedBank] || []);
+      const balanceVal = customBalance ? parseFloat(customBalance) : (selectedBank === 'Nubank' ? 5200.00 : selectedBank === 'Itaú' ? 3100.00 : selectedBank === 'Bradesco' ? 4500.00 : selectedBank === 'Banco do Brasil' ? 2800.00 : selectedBank === 'C6 Bank' ? 6200.00 : 1500.00);
+      const finalAccNumber = customAccount || accountNumber;
+      
+      onConnect(selectedBank, finalAccNumber, txs, isNaN(balanceVal) ? 0 : balanceVal);
     }
     handleClose();
   };
@@ -139,7 +278,7 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="relative w-full max-w-md bg-zinc-900 rounded-2xl shadow-xl overflow-hidden border border-zinc-800"
+        className="relative w-full max-w-md bg-zinc-900 rounded-2xl shadow-xl overflow-hidden border border-zinc-800 text-white"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-zinc-800 bg-zinc-900/50">
@@ -212,7 +351,7 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
               </motion.div>
             )}
 
-            {/* Step 2: Credentials Form */}
+            {/* Step 2: Connection details */}
             {step === 2 && selectedBank && (
               <motion.div
                 key="step2"
@@ -221,63 +360,256 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
                 exit={{ opacity: 0, x: 10 }}
                 className="space-y-4"
               >
+                {/* Bank Banner */}
                 <div className="flex items-center gap-3 p-3 bg-zinc-950 rounded-xl border border-zinc-800">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-display font-bold text-sm shadow-xs ${BANK_INFO[selectedBank].color}`}>
                     {BANK_INFO[selectedBank].logoText}
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-white">{BANK_INFO[selectedBank].name}</h4>
-                    <p className="text-[11px] text-zinc-500 font-mono">{accountNumber}</p>
+                    <p className="text-[11px] text-emerald-400 font-mono">Pronto para conexão real</p>
                   </div>
                 </div>
 
-                <form onSubmit={handleSubmitCredentials} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-zinc-400 block">CPF do Titular</label>
-                    <div className="relative">
-                      <Smartphone className="absolute left-3 top-2.5 w-4.5 h-4.5 text-zinc-500" />
-                      <input
-                        type="text"
-                        placeholder="000.000.000-00"
-                        value={cpf}
-                        onChange={(e) => setCpf(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 text-sm border border-zinc-800 bg-zinc-950 text-white rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-zinc-650"
-                        required
-                      />
+                {/* Connection Methods Tabs */}
+                <div className="flex border-b border-zinc-800">
+                  <button
+                    onClick={() => setConnectionMethod('app')}
+                    className={`flex-1 pb-2 text-xs font-semibold border-b-2 text-center transition-all ${
+                      connectionMethod === 'app'
+                        ? 'border-emerald-500 text-white'
+                        : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  >
+                    App do Banco (Open Finance)
+                  </button>
+                  <button
+                    onClick={() => setConnectionMethod('manual')}
+                    className={`flex-1 pb-2 text-xs font-semibold border-b-2 text-center transition-all ${
+                      connectionMethod === 'manual'
+                        ? 'border-emerald-500 text-white'
+                        : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  >
+                    Saldo Real + Extrato (Manual)
+                  </button>
+                </div>
+
+                {connectionMethod === 'app' ? (
+                  <div className="space-y-4">
+                    {/* Open Finance Real Simulation Panel */}
+                    <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-850 flex flex-col items-center text-center space-y-3.5">
+                      <div className="flex items-center gap-1.5 text-emerald-400 font-medium text-xs">
+                        <QrCode className="w-4 h-4" />
+                        <span>Escaneie para Conexão Imediata</span>
+                      </div>
+                      
+                      <p className="text-[11px] text-zinc-400 leading-relaxed px-1">
+                        Abra o app do <strong>{selectedBank}</strong>, acesse <strong>Open Finance</strong> e escaneie o QR Code seguro gerado para esta sessão:
+                      </p>
+
+                      {/* Customized QR Code with Central glowing bank badge */}
+                      <div className="bg-white p-3 rounded-xl shadow-lg relative">
+                        <svg className="w-32 h-32 text-zinc-900" viewBox="0 0 100 100">
+                          {/* Corner patterns */}
+                          <rect x="0" y="0" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="4" />
+                          <rect x="4" y="4" width="14" height="14" fill="currentColor" />
+                          <rect x="78" y="0" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="4" />
+                          <rect x="82" y="4" width="14" height="14" fill="currentColor" />
+                          <rect x="0" y="78" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="4" />
+                          <rect x="4" y="82" width="14" height="14" fill="currentColor" />
+                          
+                          {/* Inner Data Blocks */}
+                          <path d="M 30,5 H 40 V 15 H 30 Z M 48,5 H 58 V 15 H 48 Z M 66,5 H 74 V 15 H 66 Z" fill="currentColor" />
+                          <path d="M 30,22 H 40 V 30 H 30 Z M 48,22 H 58 V 30 H 48 Z M 66,22 H 74 V 30 H 66 Z" fill="currentColor" />
+                          <path d="M 5,30 H 15 V 40 H 5 Z M 20,30 H 28 V 40 H 20 Z M 5,45 H 15 V 55 H 5 Z M 20,45 H 28 V 55 H 20 Z" fill="currentColor" />
+                          <path d="M 78,35 H 88 V 45 H 78 Z M 88,45 H 95 V 55 H 88 Z M 78,55 H 88 V 65 H 78 Z" fill="currentColor" />
+                          <path d="M 35,78 H 45 V 88 H 35 Z M 48,78 H 58 V 88 H 48 Z M 66,78 H 74 V 88 H 66 Z" fill="currentColor" />
+                          
+                          {/* Central logo container */}
+                          <rect x="31" y="31" width="38" height="38" rx="6" fill="#18181b" stroke="#10b981" strokeWidth="2" />
+                        </svg>
+                        <div className={`absolute inset-0 m-auto w-9 h-9 rounded-md flex items-center justify-center font-display font-extrabold text-[11px] shadow-md border ${BANK_INFO[selectedBank].color}`}>
+                          {BANK_INFO[selectedBank].logoText}
+                        </div>
+                      </div>
+
+                      <div className="w-full text-left space-y-2">
+                        <div className="grid grid-cols-2 gap-3.5">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Agência e Conta (Real ou Simulação)</label>
+                            <input
+                              type="text"
+                              value={customAccount}
+                              onChange={(e) => setCustomAccount(e.target.value)}
+                              className="w-full px-3 py-2 text-xs border border-zinc-800 bg-zinc-950 text-white rounded-xl focus:border-emerald-500 outline-none transition-all font-mono"
+                              placeholder="Ag: 0001 C/C: 12345-6"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Saldo da Conta Real (R$)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={customBalance}
+                              onChange={(e) => setCustomBalance(e.target.value)}
+                              className="w-full px-3 py-2 text-xs border border-zinc-800 bg-zinc-950 text-white rounded-xl focus:border-emerald-500 outline-none transition-all font-mono"
+                              placeholder="Saldo Inicial"
+                              required
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSubmitCredentials()}
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95"
+                      >
+                        <Smartphone className="w-4 h-4 text-emerald-100" />
+                        Conectar via Aplicativo do {selectedBank}
+                      </button>
+
+                      <p className="text-[9px] text-zinc-500 max-w-[280px]">
+                        Isso irá simular o redirecionamento seguro da permissão pelo app móvel do banco do titular e conectar os dados em tempo real.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setStep(1)}
+                        className="w-full py-2 text-xs font-semibold border border-zinc-800 text-zinc-400 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer text-center"
+                      >
+                        Voltar
+                      </button>
                     </div>
                   </div>
+                ) : (
+                  // Manual input with Drag & Drop bank statement file (OFX/CSV)
+                  <div className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Agência e Conta Real</label>
+                          <input
+                            type="text"
+                            value={customAccount}
+                            onChange={(e) => setCustomAccount(e.target.value)}
+                            className="w-full px-3 py-2 text-xs border border-zinc-800 bg-zinc-950 text-white rounded-xl focus:border-emerald-500 outline-none transition-all font-mono"
+                            placeholder="Ex: Ag: 0001 CC: 10452-1"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Saldo Atual (R$)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={customBalance}
+                            onChange={(e) => setCustomBalance(e.target.value)}
+                            className="w-full px-3 py-2 text-xs border border-zinc-800 bg-zinc-950 text-white rounded-xl focus:border-emerald-500 outline-none transition-all font-mono"
+                            placeholder="Saldo Real"
+                            required
+                          />
+                        </div>
+                      </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-zinc-400 block">Senha da Conta (Simulada)</label>
-                    <div className="relative">
-                      <Key className="absolute left-3 top-2.5 w-4.5 h-4.5 text-zinc-500" />
-                      <input
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 text-sm border border-zinc-800 bg-zinc-950 text-white rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 outline-none transition-all placeholder:text-zinc-650"
-                        required
-                      />
+                      {/* Drag & Drop Area for Real Bank Statement Files */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Carregar Lançamentos do Banco (Opcional)</label>
+                        <div
+                          onDragEnter={handleDrag}
+                          onDragOver={handleDrag}
+                          onDragLeave={handleDrag}
+                          onDrop={handleDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
+                            dragActive
+                              ? 'border-emerald-500 bg-emerald-950/20'
+                              : 'border-zinc-800 hover:border-emerald-500 hover:bg-zinc-850/30'
+                          }`}
+                        >
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".csv,.ofx,.txt"
+                            className="hidden"
+                            onChange={handleFileChange}
+                          />
+                          <Upload className="w-5 h-5 text-emerald-400 mx-auto mb-1.5 animate-bounce" />
+                          <p className="text-[11px] font-semibold text-zinc-300">
+                            Arraste ou clique para carregar extrato real do {selectedBank}
+                          </p>
+                          <p className="text-[9px] text-zinc-500 mt-0.5">
+                            Suporta arquivos OFX, CSV ou TXT exportados do homebanking
+                          </p>
+                        </div>
+                      </div>
+
+                      {uploadedFileName && (
+                        <div className="p-3 bg-emerald-950/40 border border-emerald-900/30 rounded-xl flex items-center gap-2.5 text-emerald-400">
+                          <FileSpreadsheet className="w-4.5 h-4.5" />
+                          <div className="text-left">
+                            <p className="text-xs font-semibold leading-none mb-1">{uploadedFileName}</p>
+                            <p className="text-[10px] text-emerald-500 leading-none">
+                              {uploadedTransactions.length} lançamentos extraídos prontos para importar
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {fileError && (
+                        <div className="p-3 bg-rose-950/40 border border-rose-900/30 rounded-xl flex items-center gap-2.5 text-rose-400">
+                          <AlertCircle className="w-4.5 h-4.5" />
+                          <p className="text-[10px] leading-tight text-left">{fileError}</p>
+                        </div>
+                      )}
+
+                      {/* Simulated Credentials Fields for extra realism if they want */}
+                      <div className="pt-1.5 grid grid-cols-2 gap-2.5">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold text-zinc-400 block">CPF do Titular</label>
+                          <input
+                            type="text"
+                            placeholder="000.000.000-00"
+                            value={cpf}
+                            onChange={(e) => setCpf(e.target.value)}
+                            className="w-full px-3 py-1.5 text-xs border border-zinc-800 bg-zinc-950 text-white rounded-lg outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold text-zinc-400 block">Senha de Acesso</label>
+                          <input
+                            type="password"
+                            placeholder="••••••••"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full px-3 py-1.5 text-xs border border-zinc-800 bg-zinc-950 text-white rounded-lg outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2.5 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setStep(1)}
+                        className="w-1/2 py-2 text-xs font-semibold border border-zinc-800 text-zinc-400 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                      >
+                        Voltar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSubmitCredentials()}
+                        className="w-1/2 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        Conectar Conta <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
-
-                  <div className="flex gap-2.5 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setStep(1)}
-                      className="w-1/2 py-2 text-xs font-semibold border border-zinc-800 text-zinc-400 hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
-                    >
-                      Voltar
-                    </button>
-                    <button
-                      type="submit"
-                      className="w-1/2 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                    >
-                      Conectar <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </form>
+                )}
               </motion.div>
             )}
 
@@ -330,11 +662,19 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
                   </div>
                   <div className="flex justify-between text-xs text-zinc-400">
                     <span>Conta:</span>
-                    <span className="font-mono text-zinc-200">{accountNumber}</span>
+                    <span className="font-mono text-zinc-200">{customAccount || accountNumber}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-zinc-400">
+                    <span>Saldo Importado:</span>
+                    <span className="font-semibold text-white">
+                      R$ {parseFloat(customBalance || '0').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
                   </div>
                   <div className="flex justify-between text-xs text-zinc-400">
                     <span>Transações Importadas:</span>
-                    <span className="font-semibold text-emerald-400">+{BANK_SIMULATION_TRANSACTIONS[selectedBank]?.length || 0}</span>
+                    <span className="font-semibold text-emerald-400">
+                      +{uploadedTransactions.length > 0 ? uploadedTransactions.length : (BANK_SIMULATION_TRANSACTIONS[selectedBank]?.length || 0)}
+                    </span>
                   </div>
                 </div>
 
