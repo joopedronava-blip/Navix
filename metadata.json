@@ -1,0 +1,6 @@
+{
+  "name": "Navix",
+  "description": "Aplicativo de gestão financeira pessoal completo e sofisticado sob o tema dark Navix. Controle de transações, orçamentos e simulação de integração bancária automática via Open Finance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
