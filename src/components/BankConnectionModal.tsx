@@ -235,15 +235,42 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
     'PicPay': 'https://picpay.com/open-finance',
   };
 
+  const BANK_DEEP_LINKS = {
+    'Itaú': 'itauvarejo://',
+    'Nubank': 'nubank://',
+    'Bradesco': 'bradesco://',
+    'Banco do Brasil': 'bancodobrasil://',
+    'C6 Bank': 'c6bank://',
+    'PicPay': 'picpay://',
+  };
+
+  const triggerBankRedirect = (bank: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil' | 'C6 Bank' | 'PicPay') => {
+    const deepLink = BANK_DEEP_LINKS[bank];
+    const webUrl = BANK_REDIRECT_URLS[bank];
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isMobile && deepLink) {
+      // Attempt to open the installed native app
+      window.location.href = deepLink;
+      
+      // If the app is not installed, fallback to the responsive web portal after 1.5 seconds
+      setTimeout(() => {
+        if (document.hasFocus()) {
+          window.open(webUrl, '_blank', 'noopener,noreferrer');
+        }
+      }, 1500);
+    } else {
+      // On desktop, open the web portal directly
+      window.open(webUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   const handleSubmitCredentials = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     
-    // Redirect to the actual bank's official open finance portal if using app connection
+    // Redirect to the actual bank app or web portal if using app connection
     if (connectionMethod === 'app' && selectedBank) {
-      const url = BANK_REDIRECT_URLS[selectedBank];
-      if (url) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      }
+      triggerBankRedirect(selectedBank);
     }
     
     setStep(3);
@@ -669,15 +696,14 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
                       <p className="text-[11px] text-zinc-500 leading-normal">
                         Se seu navegador bloqueou a abertura da nova janela, clique no botão abaixo para ir ao portal do seu banco de forma segura:
                       </p>
-                      <a
-                        href={BANK_REDIRECT_URLS[selectedBank]}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex w-full items-center justify-center gap-1.5 py-2 bg-zinc-800 hover:bg-zinc-750 text-white rounded-lg text-[11px] font-semibold transition-colors shadow-sm"
+                      <button
+                        type="button"
+                        onClick={() => triggerBankRedirect(selectedBank)}
+                        className="w-full inline-flex items-center justify-center gap-1.5 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg text-[11px] font-semibold transition-colors shadow-sm cursor-pointer border border-emerald-500/20"
                       >
                         <Smartphone className="w-3.5 h-3.5" />
-                        Abrir Portal do {BANK_INFO[selectedBank].name}
-                      </a>
+                        Abrir App do {BANK_INFO[selectedBank].name}
+                      </button>
                     </div>
 
                     {/* Real-time status list or log line */}
