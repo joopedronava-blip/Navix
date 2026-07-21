@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Landmark, RefreshCw, Plus, Upload, Check, AlertCircle } from 'lucide-react';
+import { Landmark, RefreshCw, Plus, Upload, Check, AlertCircle, Trash2 } from 'lucide-react';
 import { BankAccount } from '../types';
 
 interface AccountsListProps {
   accounts: BankAccount[];
   onSyncAccount: (id: string) => void;
+  onDeleteAccount: (id: string) => void;
   onOpenConnectModal: () => void;
   onOpenUploadModal: () => void;
 }
@@ -13,6 +14,7 @@ interface AccountsListProps {
 export default function AccountsList({
   accounts,
   onSyncAccount,
+  onDeleteAccount,
   onOpenConnectModal,
   onOpenUploadModal,
 }: AccountsListProps) {
@@ -43,6 +45,10 @@ export default function AccountsList({
         return <div className="w-8 h-8 rounded-lg bg-rose-600 text-white font-display font-bold flex items-center justify-center text-[10px] shadow-xs">Brad</div>;
       case 'Banco do Brasil':
         return <div className="w-8 h-8 rounded-lg bg-amber-400 text-slate-800 font-display font-bold flex items-center justify-center text-xs shadow-xs">BB</div>;
+      case 'C6 Bank':
+        return <div className="w-8 h-8 rounded-lg bg-zinc-800 text-white font-display font-bold flex items-center justify-center text-xs shadow-xs border border-zinc-700">C6</div>;
+      case 'PicPay':
+        return <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white font-display font-bold flex items-center justify-center text-[10px] shadow-xs">PicP</div>;
       default:
         return <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 font-display font-bold flex items-center justify-center text-xs shadow-xs">Card</div>;
     }
@@ -116,16 +122,26 @@ export default function AccountsList({
                   </p>
                 </div>
 
-                {acc.syncStatus !== 'disconnected' && (
+                <div className="flex items-center gap-1">
+                  {acc.syncStatus !== 'disconnected' && (
+                    <button
+                      disabled={isSyncing}
+                      onClick={() => handleSyncClick(acc.id)}
+                      className={`p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-all ${isSyncing ? 'cursor-not-allowed opacity-50' : ''}`}
+                      title="Sincronizar conta agora"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-400' : ''}`} />
+                    </button>
+                  )}
+
                   <button
-                    disabled={isSyncing}
-                    onClick={() => handleSyncClick(acc.id)}
-                    className={`p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-all ${isSyncing ? 'cursor-not-allowed opacity-50' : ''}`}
-                    title="Sincronizar conta agora"
+                    onClick={() => onDeleteAccount(acc.id)}
+                    className="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-950/20 rounded-lg transition-all"
+                    title="Desconectar conta"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-400' : ''}`} />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                )}
+                </div>
               </div>
             </motion.div>
           );

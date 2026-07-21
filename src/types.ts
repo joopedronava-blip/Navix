@@ -3,7 +3,7 @@ export interface BankAccount {
   name: string;
   type: 'checking' | 'savings' | 'credit' | 'cash';
   balance: number;
-  institution: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil' | 'Carteira';
+  institution: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil' | 'Carteira' | 'C6 Bank' | 'PicPay';
   syncStatus: 'synced' | 'pending' | 'error' | 'disconnected';
   lastSynced?: string;
   accountNumber?: string;
@@ -41,7 +41,7 @@ export interface Budget {
 
 export interface BankConnection {
   id: string;
-  institution: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil';
+  institution: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil' | 'C6 Bank' | 'PicPay';
   isConnected: boolean;
   lastSynced?: string;
   accountNumber?: string;

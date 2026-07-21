@@ -75,7 +75,7 @@ export default function App() {
   
   // Connect new bank (Open Finance)
   const handleConnectBank = (
-    bank: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil',
+    bank: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil' | 'C6 Bank' | 'PicPay',
     accountNumber: string,
     importedTransactions: Omit<Transaction, 'id' | 'accountId'>[],
     initialBalance: number
@@ -87,12 +87,14 @@ export default function App() {
       Nubank: 'from-purple-600 to-indigo-700',
       Bradesco: 'from-rose-600 to-rose-700',
       'Banco do Brasil': 'from-amber-400 to-yellow-600',
+      'C6 Bank': 'from-zinc-700 to-zinc-900',
+      PicPay: 'from-emerald-500 to-teal-600',
     };
 
     const newAccount: BankAccount = {
       id: newAccountId,
-      name: `Conta ${bank}`,
-      type: bank === 'Nubank' ? 'savings' : 'checking',
+      name: bank === 'C6 Bank' ? 'C6 Conta Global' : bank === 'PicPay' ? 'Carteira PicPay' : `Conta ${bank}`,
+      type: (bank === 'Nubank' || bank === 'PicPay') ? 'savings' : 'checking',
       balance: initialBalance,
       institution: bank,
       syncStatus: 'synced',
@@ -216,6 +218,23 @@ export default function App() {
     triggerToast(`Sincronização concluída com ${targetAccount.name}!`);
   };
 
+  // Delete bank account
+  const handleDeleteAccount = (id: string) => {
+    const targetAccount = accounts.find((acc) => acc.id === id);
+    if (!targetAccount) return;
+
+    if (accounts.length <= 1) {
+      triggerToast('Você precisa manter pelo menos uma conta ativa no aplicativo.');
+      return;
+    }
+
+    if (window.confirm(`Deseja realmente desconectar e remover a conta ${targetAccount.name}? Todos os lançamentos sincronizados desta conta serão removidos.`)) {
+      setAccounts((prev) => prev.filter((acc) => acc.id !== id));
+      setTransactions((prev) => prev.filter((tx) => tx.accountId !== id));
+      triggerToast(`Conta ${targetAccount.name} removida com sucesso!`);
+    }
+  };
+
   // Reset Mock Data
   const handleResetData = () => {
     if (window.confirm('Deseja realmente redefinir o dashboard para os valores padrão de simulação?')) {
@@ -334,6 +353,7 @@ export default function App() {
                 <AccountsList
                   accounts={accounts}
                   onSyncAccount={handleSyncAccount}
+                  onDeleteAccount={handleDeleteAccount}
                   onOpenConnectModal={() => setIsConnectOpen(true)}
                   onOpenUploadModal={() => setIsUploadOpen(true)}
                 />

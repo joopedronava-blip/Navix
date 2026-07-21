@@ -8,7 +8,7 @@ interface BankConnectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConnect: (
-    bank: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil',
+    bank: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil' | 'C6 Bank' | 'PicPay',
     accountNumber: string,
     importedTransactions: Omit<Transaction, 'id' | 'accountId'>[],
     initialBalance: number
@@ -44,11 +44,25 @@ const BANK_INFO = {
     logoText: 'BB',
     accentColor: 'text-amber-500',
   },
+  'C6 Bank': {
+    name: 'C6 Bank',
+    color: 'bg-zinc-800 text-white border border-zinc-700',
+    hoverColor: 'hover:bg-zinc-900',
+    logoText: 'C6',
+    accentColor: 'text-zinc-400',
+  },
+  'PicPay': {
+    name: 'PicPay',
+    color: 'bg-emerald-500 text-white',
+    hoverColor: 'hover:bg-emerald-600',
+    logoText: 'PicP',
+    accentColor: 'text-emerald-500',
+  },
 };
 
 export default function BankConnectionModal({ isOpen, onClose, onConnect }: BankConnectionModalProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [selectedBank, setSelectedBank] = useState<'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil' | null>(null);
+  const [selectedBank, setSelectedBank] = useState<'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil' | 'C6 Bank' | 'PicPay' | null>(null);
   const [cpf, setCpf] = useState('');
   const [password, setPassword] = useState('');
   const [loadingText, setLoadingText] = useState('');
@@ -68,7 +82,7 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
     onClose();
   };
 
-  const handleSelectBank = (bank: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil') => {
+  const handleSelectBank = (bank: 'Itaú' | 'Nubank' | 'Bradesco' | 'Banco do Brasil' | 'C6 Bank' | 'PicPay') => {
     setSelectedBank(bank);
     // Generate a random account number for realism
     const randomAg = Math.floor(1000 + Math.random() * 9000);
@@ -111,7 +125,7 @@ export default function BankConnectionModal({ isOpen, onClose, onConnect }: Bank
     if (selectedBank) {
       const txs = BANK_SIMULATION_TRANSACTIONS[selectedBank] || [];
       // Calculate random initial balance matching simulated values
-      const balance = selectedBank === 'Nubank' ? 5200.00 : selectedBank === 'Itaú' ? 3100.00 : selectedBank === 'Bradesco' ? 4500.00 : 2800.00;
+      const balance = selectedBank === 'Nubank' ? 5200.00 : selectedBank === 'Itaú' ? 3100.00 : selectedBank === 'Bradesco' ? 4500.00 : selectedBank === 'Banco do Brasil' ? 2800.00 : selectedBank === 'C6 Bank' ? 6200.00 : 1500.00;
       onConnect(selectedBank, accountNumber, txs, balance);
     }
     handleClose();

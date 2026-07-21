@@ -469,5 +469,63 @@ export const BANK_SIMULATION_TRANSACTIONS: Record<string, Omit<Transaction, 'id'
       isSynced: true,
       bankName: 'Banco do Brasil',
     }
+  ],
+  'C6 Bank': [
+    {
+      description: 'Supermercado Mambo',
+      amount: -180.50,
+      type: 'expense',
+      category: 'Alimentação',
+      date: '2026-07-21',
+      isSynced: true,
+      bankName: 'C6 Bank',
+    },
+    {
+      description: 'Investimento CDB Pós C6',
+      amount: -500.00,
+      type: 'expense',
+      category: 'Investimentos',
+      date: '2026-07-20',
+      isSynced: true,
+      bankName: 'C6 Bank',
+    },
+    {
+      description: 'Estorno Amazon Prime',
+      amount: 159.90,
+      type: 'income',
+      category: 'Outros',
+      date: '2026-07-19',
+      isSynced: true,
+      bankName: 'C6 Bank',
+    }
+  ],
+  PicPay: [
+    {
+      description: 'Pizzaria Bráz',
+      amount: -110.00,
+      type: 'expense',
+      category: 'Alimentação',
+      date: '2026-07-21',
+      isSynced: true,
+      bankName: 'PicPay',
+    },
+    {
+      description: 'Rendimento CDI PicPay',
+      amount: 12.45,
+      type: 'income',
+      category: 'Investimentos',
+      date: '2026-07-20',
+      isSynced: true,
+      bankName: 'PicPay',
+    },
+    {
+      description: 'PIX Recebido Carlos André',
+      amount: 250.00,
+      type: 'income',
+      category: 'Outros',
+      date: '2026-07-18',
+      isSynced: true,
+      bankName: 'PicPay',
+    }
   ]
 };
